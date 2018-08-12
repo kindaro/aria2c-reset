@@ -115,12 +115,19 @@ do
                 Terminate "$strikes strikes collected."
                 strikes=0
                 sleep 1
-                continue 2
+                echo 'Strike limit' > "$tmpdir"/flag
+                break
             fi
         done
+    if [ -f "$tmpdir"/flag ] && [ "` cat "$tmpdir"/flag `" = 'Strike limit' ]
+    then
+        rm "$tmpdir"/flag
+        continue
+    else
+        Terminate "Successfully completed download."
+        Clean "Successfully completed download."
+        trap - EXIT
+        exit 0
+    fi
 done
 
-Terminate "Successfully completed download."
-Clean "Successfully completed download."
-trap - EXIT
-exit 0
