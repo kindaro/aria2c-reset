@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/sh -e
 
 Stop () {
     reason="$1"
@@ -119,4 +119,8 @@ do
             fi
         done
 done
-Stop "Successfully completed download."
+
+Terminate "Successfully completed download."
+Clean "Successfully completed download."
+trap - EXIT
+exit 0
