@@ -1,49 +1,74 @@
 #!/bin/sh -e
 
 Stop () {
-    echo "Stopping!"
-    Terminate
-    Clean
+    reason="$1"
+    if [ "$reason" ]
+    then echo "Stopping! Reason: $reason"
+    else echo "Stopping for unknown reason!"
+    fi
+
+    Terminate "Because of stopping."
+    Clean "Because of stopping."
+    trap - EXIT
     exit 1
 }
 
 Clean () {
-    echo "Cleaning!"
+    reason="$1"
+    if [ "$reason" ]
+    then echo "Cleaning! Reason: $reason"
+    else echo "Cleaning for unknown reason!"
+    fi
+
     rm "$tmpfifo"
     rmdir "$tmpdir"
 }
 
 Terminate () {
-    echo "Terminating $aria2c_pid!"
-    /bin/kill "$aria2c_pid"
-    sleep 1
-    if ps "$aria2c_pid" > /dev/null
+    reason="$1"
+    if [ "$reason" ]
+    then echo "Terminating! Reason: $reason"
+    else echo "Terminating for unknown reason!"
+    fi
+
+    if [ "$aria2c_pid" ]
     then
-        echo "Killing $aria2c_pid!"
-        /bin/kill --signal kill "$aria2c_pid"
+        if ps "$aria2c_pid" > /dev/null
+        then
+            echo "Terminating $aria2c_pid!"
+            /bin/kill "$aria2c_pid"
+            sleep 1
+
+            if ps "$aria2c_pid" > /dev/null
+            then
+                echo "Killing $aria2c_pid!"
+                /bin/kill --signal kill "$aria2c_pid"
+            fi
+        fi
+    else
+        echo "Process ID unavailable!"
     fi
 }
 
 echo "Starting aria2c with arguments:" "$@"
 
-declare -i strikes=0
-declare -i speed=0
+strikes=0
+speed=0
 
-declare -i expected_raw_speed="$1"
+expected_raw_speed="$1"
 shift
-declare -i tolerance="$1"
+tolerance="$1"
 shift
 
 tmpdir=`mktemp --directory`
 tmpfifo="$tmpdir/aria2c-fifo"
 mkfifo "$tmpfifo"
 
-trap Stop SIGINT SIGTERM SIGTSTP EXIT
+trap Stop INT TERM TSTP EXIT
 
 while true
 do
     echo "Starting download."
-    flag="In process"
 
     aria2c "$@" --log - > "$tmpfifo" &
     aria2c_pid=$!
@@ -69,8 +94,7 @@ do
                     speed=0
                     ;;
                 *     ) 
-                    echo "Cannot parse speed!"
-                    exit
+                    Stop "Cannot parse speed!"
                     ;;
             esac
 
@@ -81,11 +105,11 @@ do
             
             if [ "$strikes" -ge "$tolerance" ]
             then
+                Terminate "$strikes strikes collected."
                 strikes=0
-                Terminate
                 sleep 1
                 continue 2
             fi
         done
 done
-Stop
+Stop "Successfully completed download."
