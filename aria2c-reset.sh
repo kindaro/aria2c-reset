@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh -ex
 
 Stop () {
     reason="$1"
@@ -42,7 +42,12 @@ Terminate () {
             if ps "$aria2c_pid" > /dev/null
             then
                 echo "Killing $aria2c_pid!"
-                /bin/kill --signal kill "$aria2c_pid"
+                /bin/kill --signal kill "$aria2c_pid" || true
+                    # Why `|| true`?
+                    #
+                    # There is a window of time between `ps` and `kill` invocations during which
+                    # aria2c process may terminate. In such case, `kill` will error out. But we
+                    # do not want that to crash the whole script.
             fi
         fi
     else
@@ -78,7 +83,7 @@ do
         while read -r line
         do
             progress="` echo "$line" | grep -o '([0-9]\+%)' | grep -o '[0-9]\+%' `"
-            raw_speed="` echo "$line" | grep -o ' DL:[0-9.]\+[K]iB ' `"
+            raw_speed="` echo "$line" | grep -o ' DL:[0-9.]\+\([KM]i\)\?B ' `"
             number_speed="` echo "$raw_speed" | grep -o '[0-9]\+' | head -n 1 `"
             suffix_speed="` echo "$raw_speed" | grep -o '[A-Za-z]*B' `"
 
@@ -101,6 +106,8 @@ do
             if [ "$speed" -lt "$expected_raw_speed" ]
             then
                 strikes=$((strikes + 1))
+            else
+                strikes=0
             fi
             
             if [ "$strikes" -ge "$tolerance" ]
