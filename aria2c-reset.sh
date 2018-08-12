@@ -4,6 +4,7 @@ Stop () {
     echo "Stopping!"
     Terminate
     Clean
+    exit 1
 }
 
 Clean () {
@@ -48,18 +49,24 @@ do
     aria2c_pid=$!
     echo "Aria pid: $aria2c_pid"
 
-    cat "$tmpfifo" |
-        grep --line-buffered -o ' DL:[0-9]\+[K]iB ' |
+    cat "$tmpfifo" | grep --line-buffered '\[.* DL:[^ ]\+ ETA:[^ ]\+.*\]' |
         while read -r line
         do
-            echo "Line: $line"
-            raw_speed="` echo $line | grep -o '[0-9]\+' `"
-            case "$line" in
-                *KiB  ) 
-                    speed=$((raw_speed * 1))
+            progress="` echo "$line" | grep -o '([0-9]\+%)' | grep -o '[0-9]\+%' `"
+            raw_speed="` echo "$line" | grep -o ' DL:[0-9.]\+[K]iB ' `"
+            number_speed="` echo "$raw_speed" | grep -o '[0-9]\+' | head -n 1 `"
+            suffix_speed="` echo "$raw_speed" | grep -o '[A-Za-z]*B' `"
+
+            echo "Progress: $progress Speed: $number_speed $suffix_speed"
+            case "$suffix_speed" in
+                KiB  ) 
+                    speed=$((number_speed * 1))
                     ;;
-                *MiB  ) 
-                    speed=$((raw_speed * 1024))
+                MiB  ) 
+                    speed=$((number_speed * 1024))
+                    ;;
+                B    )
+                    speed=0
                     ;;
                 *     ) 
                     echo "Cannot parse speed!"
@@ -67,7 +74,7 @@ do
                     ;;
             esac
 
-            if [ "$raw_speed" -lt "$expected_raw_speed" ]
+            if [ "$speed" -lt "$expected_raw_speed" ]
             then
                 strikes=$((strikes + 1))
             fi
